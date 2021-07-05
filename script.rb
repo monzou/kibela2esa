@@ -2,9 +2,8 @@ require 'fileutils'
 require 'pry'
 require 'esa'
 require 'logger'
+require_relative './config'
 require_relative './kibela'
-
-ESA_TEAM = ENV['ESA_TEAM_NAME']
 
 class Migrater
   attr_reader :notes, :attachment_list
@@ -12,17 +11,19 @@ class Migrater
   def initialize
     @logger = Logger.new(STDOUT)
     @file_logger = Logger.new("log_#{Time.now.to_i}.log")
-    @client = Esa::Client.new(access_token: ENV['ESA_ACCESS_TOKEN'], current_team: ESA_TEAM)
+    @client = Esa::Client.new(access_token: $ESA_ACCESS_TOKEN, current_team: $ESA_TEAM)
   end
 
   def prepare
-    @notes = Dir.glob("./kibela-#{ENV['KIBELA_TEAM']}-*/**/*.md").map do |path|
+    @notes = Dir.glob("#{$KIBELA_DIR}/kibela-#{$KIBELA_TEAM}-*/**/*.md").map do |path|
       File.open(path) do |f|
         Kibela::Note.new(f)
       end
-    end
+    end.map do |note|
+      [ note.id, note ]
+    end.to_h
 
-    @attachments = Dir.glob("./kibela-#{ENV['KIBELA_TEAM']}-*/attachments/*").map do |path|
+    @attachments = Dir.glob("#{$KIBELA_DIR}/kibela-#{$KIBELA_TEAM}-*/attachments/*").map do |path|
       File.open(path) do |f|
         Kibela::Attachment.new(f)
       end
@@ -39,8 +40,13 @@ class Migrater
   def migrate(dry_run: true)
     prepare
     upload_attachments unless dry_run
+    create_notes(dry_run)
+    replace_relative_links unless dry_run
+    create_notes_links unless dry_run
+  end
 
-    @notes.each do |note|
+  def create_notes(dry_run)
+    @notes.each_value do |note|
       request = note.esafy(@attachment_list)
       @logger.info request
       @file_logger.info request
@@ -62,6 +68,29 @@ class Migrater
           @file_logger.info response
           sleep 0.5
         end
+      end
+    end
+  end
+
+  def create_notes_links
+    File.open($POST_MAPPINGS_FILE, mode = "w") do |f|
+      @notes.each_value do |note|
+        f.write("\"#{note.name}\"\t\"#{$KIBELA_URL}/notes/#{note.id}\"\t\"#{$ESA_URL}/posts/#{note.esa_number}\"\n")
+      end
+    end
+  end
+
+  def replace_relative_links
+    @notes.each_value do |note|
+      if note.has_links?
+        note.replace_links(@notes)
+        request = note.esafy(@attachment_list)
+        @logger.info request
+        @file_logger.info request
+        response = @client.update_post(note.esa_number, request)
+        @file_logger.info response
+        note.response = response
+        sleep 0.5
       end
     end
   end

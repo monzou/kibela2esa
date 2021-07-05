@@ -1,0 +1,12 @@
+$KIBELA_DIR = File.expand_path('./Downloads/kibela', Dir.home)
+$KIBELA_TEAM = 'newspicks'
+$KIBELA_URL = "https://#{$KIBELA_TEAM}.kibe.la"
+$KIBELA_SESSION_ID = '__KIBELA_SESSION_ID__'
+$ESA_TEAM = 'newspicks'
+$ESA_URL = "https://#{$ESA_TEAM}.esa.io"
+$ESA_ACCESS_TOKEN = '__ESA_ACCESS_TOKEN__'
+$ESA_MIGRATION_PATH = 'Archived/Kibela'
+$POST_MAPPINGS_FILE = File.expand_path('./Desktop/kibela2esa.tsv', Dir.home)
+$USER_MAPPINGS = {
+  'monzou' => 'monzou'
+}.freeze
